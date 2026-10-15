@@ -7,7 +7,7 @@
 Three services in the Oklahoma City metro, run out of Edmond, OK:
 1. **Junk removal (full service):** our crew loads and hauls furniture, appliances, mattresses, yard waste, construction and renovation debris.
 2. **Property cleanouts:** whole-unit trash-outs, move-out, eviction, estate and foreclosure cleanouts.
-3. **Roll-off dumpster rental:** dropped on site for contractors, remodels and bigger cleanouts where the customer's crew loads it. VERIFY sizes, rental period and rates.
+3. **Roll-off dumpster rental:** 15-yard and 20-yard roll-offs, dropped on site for contractors, remodels and bigger cleanouts where the customer's crew loads it. Rental period and rates: they text for details.
 
 ## Core Value Proposition
 A local, veteran-owned crew that shows up same day at a commercial rate with no contract, and either hauls it away or drops a dumpster, so a unit can be turned, a listing can be shown, or a job site can be closed out on schedule.
@@ -30,7 +30,7 @@ A local, veteran-owned crew that shows up same day at a commercial rate with no 
 - Commercial rate for property managers, real estate agents and contractors, with **no contract**. Use it job by job.
 - Junk removal is priced by volume (fraction of a truckload).
 - Quotes by text from a photo.
-- Dumpster rental: VERIFY sizes, rental period and rates. Never quote a price in an email.
+- Dumpster rental: 15-yard and 20-yard roll-offs. For rental period and pricing, have them text 405-266-4412. Never quote a price or rental length in an email; we don't offer 30 or 40 yard, so don't promise them.
 
 ## Target Audience
 Property management companies, real estate agencies and brokerages, and general contractors/remodelers within ~30 miles of Edmond, OK (OKC, Moore, Norman, Yukon, Mustang, Midwest City, Guthrie).
