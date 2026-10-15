@@ -8,21 +8,22 @@ persona:
 
 product:
   name: "Junk Platoon Junk Removal"
-  description: "Veteran-owned junk removal in the Oklahoma City metro (based in Edmond, OK). Same-day and next-day hauling of furniture, appliances, debris and cleanouts for property managers, real estate agents and contractors."
-  pricing: "Volume-based pricing — you pay for the space your junk takes up in the truck. Free, no-obligation quotes."
+  description: "Veteran-owned junk removal, property cleanouts and roll-off dumpster rental in the Oklahoma City metro (based in Edmond, OK). Same-day service at a commercial rate, no contract, for property managers, real estate agents and contractors."
+  pricing: "Commercial rate for property managers, agents and contractors, no contract. Junk removal is priced by volume; quotes by text from a photo."
   key_benefits:
-    - "Same-day and next-day service across the OKC metro — turn units, listings and job sites faster"
+    - "Same-day service across the OKC metro — turn units, listings and job sites faster"
+    - "One call covers it: full-service haul-away, property cleanouts, or a roll-off dumpster dropped on site"
+    - "Commercial rate with no contract — use us when you need us"
     - "Trained, insured and bonded crews"
-    - "Upfront volume-based pricing with free quotes, no surprises"
     - "Veteran-owned and veteran-staffed; 10% of profits support veteran entrepreneurship and PTSD resources"
     - "Strong local reviews (about 4.8 on Trustpilot, 4.6 on HomeAdvisor)"
   objection_responses:
     "too expensive": "Totally fair. Pricing is by volume, so you only pay for what we haul — and a quick photo is usually enough for a firm quote. Happy to price your next one so you can compare."
-    "already have a solution": "Makes sense. A lot of our property managers and contractors keep us as the backup for when their usual hauler can't come same-day. Worth having our number for that?"
+    "already have a solution": "Makes sense. Since there's no contract, a lot of property managers and contractors keep us as the backup for when their usual hauler or dumpster company can't come same day."
     "not interested": "No problem at all. If a move-out or cleanout ever lands on your desk with a deadline, we're local and can usually be there the same or next day."
-    "we do it ourselves": "Plenty of folks do. Where we usually help is the big ones — full-unit trash-outs, estate cleanouts, construction debris — where a crew and a truck saves your team a day."
+    "we do it ourselves": "Plenty of folks do. If your crew would rather load it themselves, we can drop a roll-off dumpster same day. For full-unit trash-outs and estate cleanouts, our crew does the lifting and saves your team a day."
   offer:
-    primary: "On-call junk removal for property managers, agents and contractors — same/next-day cleanouts, trash-outs and debris haul-off"
+    primary: "Same-day junk removal, property cleanouts and roll-off dumpster rental at a commercial rate, no contract"
     entry: "Text a photo of the job to 405-266-4412 for a same-day quote"
     goal: "get_reply"
     booking_method: "ask_preference"   # no meetings: interested prospects text photos to 405-266-4412 (see skills/product_knowledge.md)

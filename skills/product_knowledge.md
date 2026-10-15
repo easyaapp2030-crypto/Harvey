@@ -4,25 +4,33 @@
 > Anything marked VERIFY should be confirmed by the owner before relying on it.
 
 ## What We Sell
-Junk removal and hauling in the Oklahoma City metro, run out of Edmond, OK. Furniture, appliances, mattresses, yard waste, construction and renovation debris, whole-unit trash-outs, estate and foreclosure cleanouts.
+Three services in the Oklahoma City metro, run out of Edmond, OK:
+1. **Junk removal (full service):** our crew loads and hauls furniture, appliances, mattresses, yard waste, construction and renovation debris.
+2. **Property cleanouts:** whole-unit trash-outs, move-out, eviction, estate and foreclosure cleanouts.
+3. **Roll-off dumpster rental:** dropped on site for contractors, remodels and bigger cleanouts where the customer's crew loads it. VERIFY sizes, rental period and rates.
 
 ## Core Value Proposition
-A local, veteran-owned crew that shows up same-day or next-day, quotes upfront, and leaves the space empty, so a unit can be turned, a listing can be shown, or a job site can be closed out on schedule.
+A local, veteran-owned crew that shows up same day at a commercial rate with no contract, and either hauls it away or drops a dumpster, so a unit can be turned, a listing can be shown, or a job site can be closed out on schedule.
 
 ## Key Benefits
-- Same-day and next-day service across the OKC metro
+- Same-day service across the OKC metro
+- Commercial rate for property managers, agents and contractors, with no contract
+- One company for haul-away, cleanouts and dumpster rental
 - Trained, insured and bonded crews
-- Volume-based pricing with free quotes, so you pay only for truck space used
+- Quotes by text from a photo
 - Veteran-owned (Todd Temaat, 21-year Air Force veteran, Iraq and Afghanistan), hires veterans
 - 10% of profits go to veteran entrepreneur training and PTSD resources
 
 ## Use Cases
 - **Property managers / apartment communities:** move-out trash-outs, abandoned belongings, make-ready deadlines, common-area cleanups, eviction cleanouts
 - **Real estate agents / investors:** pre-listing cleanouts, estate cleanouts, foreclosure and REO trash-outs, garage and shed cleanouts before photos
-- **Contractors / remodelers:** demo and renovation debris, haul-off at project close, cleaning up after subs. Often cheaper than holding a dumpster on a small job
+- **Contractors / remodelers:** demo and renovation debris, haul-off at project close, cleaning up after subs. Roll-off dumpster for longer jobs, or a same-day haul-off for small ones
 
 ## Pricing
-Volume-based (fraction of a truckload). Free quotes, from a photo or on site. VERIFY whether there's a commercial or recurring-account rate.
+- Commercial rate for property managers, real estate agents and contractors, with **no contract**. Use it job by job.
+- Junk removal is priced by volume (fraction of a truckload).
+- Quotes by text from a photo.
+- Dumpster rental: VERIFY sizes, rental period and rates. Never quote a price in an email.
 
 ## Target Audience
 Property management companies, real estate agencies and brokerages, and general contractors/remodelers within ~30 miles of Edmond, OK (OKC, Moore, Norman, Yukon, Mustang, Midwest City, Guthrie).
@@ -33,7 +41,9 @@ The person who gets stuck with the mess on a deadline: property or community man
 ## What Makes Us Different
 - Local and owner-operated, not a national franchise call center
 - Veteran-owned and veteran-staffed, with a give-back to veterans
-- Same/next-day availability
+- Same-day availability
+- Haul-away AND dumpster rental from one company
+- Commercial rate without locking anyone into a contract
 
 ## Social Proof & Case Studies
 - About 4.8★ on Trustpilot (57 reviews) and 4.6★ on HomeAdvisor (131 reviews); reviewers mostly mention professionalism and speed
@@ -42,9 +52,10 @@ The person who gets stuck with the mess on a deadline: property or community man
 
 ## Prospect Pain Points
 - Units sitting vacant because a trash-out hasn't happened
-- Haulers who can't come for a week, or don't show
+- Haulers or dumpster companies that can't come for a week, or don't show
+- Being pushed into a service contract just to get commercial pricing
 - Listing photos delayed by a cluttered house or garage
-- Paying for a dumpster for a small job, or crews wasting a day hauling
+- Crews wasting a day hauling instead of doing billable work
 - Surprise pricing
 
 ## Buying Triggers
@@ -59,7 +70,7 @@ The person who gets stuck with the mess on a deadline: property or community man
 - Hazardous material removal (most junk haulers can't take paint, chemicals, asbestos; VERIFY what's accepted)
 
 ## Market Positioning
-The reliable local backup and go-to hauler for people who manage properties and projects in the OKC metro.
+The no-contract, same-day option for haul-away, cleanouts and dumpsters for people who manage properties and projects in the OKC metro.
 
 ## Tone & Voice
 Plainspoken, friendly, brief. Sounds like a local business owner writing a neighbor, not marketing. No hype, no AI-sounding phrasing. Mention the veteran angle once, lightly, and only where it fits.

@@ -1,15 +1,17 @@
 # Competitive Intel — Junk Platoon
 
 ## Market Positioning
-OKC-area buyers can choose national junk-removal franchises, other local haulers, renting a dumpster, or doing it in-house with maintenance staff. Junk Platoon competes on speed, reliability and being a local, owner-run, veteran-owned business.
+OKC-area buyers can choose national junk-removal franchises, other local haulers, renting a dumpster, or doing it in-house with maintenance staff. Junk Platoon competes on same-day speed, a commercial rate with no contract, offering both haul-away and dumpster rental, and being a local, owner-run, veteran-owned business.
 
 ## Our Unique Strengths
-- Same/next-day availability
+- Same-day availability
+- Haul-away and roll-off dumpsters from one company
+- Commercial rate, no contract
 - Owner-operated: you reach the person accountable
 - Veteran-owned and veteran-staffed, with 10% of profits given back
 
 ## Common Alternatives (Non-Competitors)
-- **Dumpster rental:** good for long, large projects; overkill and slower for a single unit or small job, plus you still have to load it
+- **Other dumpster companies:** we rent roll-offs too, so this is a direct comparison. Lead with same-day drop-off and the option to switch to full-service haul-away when they'd rather not load it themselves
 - **In-house maintenance crew:** free on paper, but takes techs off make-readies and repairs for a day
 - **Facebook/Craigslist haulers:** cheap, but often uninsured and unreliable
 
