@@ -23,9 +23,9 @@ product:
     "we do it ourselves": "Plenty of folks do. Where we usually help is the big ones — full-unit trash-outs, estate cleanouts, construction debris — where a crew and a truck saves your team a day."
   offer:
     primary: "On-call junk removal for property managers, agents and contractors — same/next-day cleanouts, trash-outs and debris haul-off"
-    entry: "Free quote on their next cleanout (photo or on-site)"
+    entry: "Text a photo of the job to 405-266-4412 for a same-day quote"
     goal: "get_reply"
-    booking_method: "ask_preference"
+    booking_method: "ask_preference"   # no meetings: interested prospects text photos to 405-266-4412 (see skills/product_knowledge.md)
     booking_url: ""
     meeting_duration: "10 minutes"
     meeting_owner: "Todd Temaat"

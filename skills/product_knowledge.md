@@ -64,5 +64,12 @@ The reliable local backup and go-to hauler for people who manage properties and 
 ## Tone & Voice
 Plainspoken, friendly, brief. Sounds like a local business owner writing a neighbor, not marketing. No hype, no AI-sounding phrasing. Mention the veteran angle once, lightly, and only where it fits.
 
+## Next Step (Call to Action)
+When a prospect is interested, the next step is a TEXT, not a call or meeting:
+- Ask them to text a photo of the job to **405-266-4412** for a quote, usually answered the same day.
+- Never ask for a meeting, demo or calendar time. A quote by text is the whole ask.
+- In email 1, don't give the number; just ask a question. Give the text number in later emails or when they reply with interest.
+- Avoid the word "free" in emails (spam filters). Say "a quote by text" or "we'll price it from a photo".
+
 ## Contact
-Phone: 405-900-8387. Website: junkplatoon.com (VERIFY that it's back up before sending links).
+Text: 405-266-4412 (use this in emails). Office line: 405-900-8387. Website: junkplatoon.com (VERIFY that it's back up before sending links).
