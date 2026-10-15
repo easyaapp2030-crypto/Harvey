@@ -29,6 +29,7 @@ A local, veteran-owned crew that shows up same day at a commercial rate with no 
 ## Pricing
 - Commercial rate for property managers, real estate agents and contractors, with **no contract**. Use it job by job.
 - Junk removal is priced by volume (fraction of a truckload).
+- We haul it all. Anything beyond normal household junk (paint, chemicals and similar special items) is accepted but carries an extra charge. Say so plainly if it comes up; never quote the amount.
 - Quotes by text from a photo.
 - Dumpster rental: 15-yard and 20-yard roll-offs. For rental period and pricing, have them text 405-266-4412. Never quote a price or rental length in an email; we don't offer 30 or 40 yard, so don't promise them.
 
@@ -66,8 +67,7 @@ The person who gets stuck with the mess on a deadline: property or community man
 
 ## Disqualifiers
 - Outside ~30 miles of Edmond
-- Companies that only manage commercial office space with in-house janitorial/haul contracts (VERIFY)
-- Hazardous material removal (most junk haulers can't take paint, chemicals, asbestos; VERIFY what's accepted)
+- Nothing on the material side: we haul it all (see Pricing for special items)
 
 ## Market Positioning
 The no-contract, same-day option for haul-away, cleanouts and dumpsters for people who manage properties and projects in the OKC metro.
