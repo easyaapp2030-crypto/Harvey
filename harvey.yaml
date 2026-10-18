@@ -37,16 +37,33 @@ icp:
     - "real estate agency"
     - "general contractor"
   company_size: "1-200 employees"
+  # Matched as "title contains this text", case-insensitive, so keep these
+  # short: "Property Manager" also matches "Regional Property Manager".
+  # Small local businesses mostly title the decision-maker Owner, President,
+  # CEO, Founder, Principal or General Manager — keep those in.
   titles:
     - "Property Manager"
     - "Community Manager"
-    - "Regional Property Manager"
-    - "Maintenance Supervisor"
+    - "Leasing Manager"
+    - "Asset Manager"
+    - "Maintenance"
     - "Real Estate Agent"
+    - "Realtor"
     - "Broker"
-    - "Owner"
+    - "Team Lead"
     - "Project Manager"
+    - "Construction Manager"
     - "Superintendent"
+    - "Estimator"
+    - "Operations Manager"
+    - "Office Manager"
+    - "General Manager"
+    - "Owner"
+    - "President"
+    - "CEO"
+    - "Founder"
+    - "Principal"
+    - "Managing Member"
   geography:
     - "Edmond, OK"
   # Centered on Edmond, 48 km (~30 miles) — covers OKC, Moore, Norman edge,
