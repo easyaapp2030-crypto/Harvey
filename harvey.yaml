@@ -7,7 +7,7 @@ persona:
   tone: "friendly, direct, no-nonsense — a local veteran-owned business, not a call center"
 
 product:
-  name: "Junk Platoon Junk Removal"
+  name: "Junk Platoon Junk Removal & Dumpster Rental"
   description: "Veteran-owned junk removal, property cleanouts and roll-off dumpster rental in the Oklahoma City metro (based in Edmond, OK). Same-day service at a commercial rate, no contract, for property managers, real estate agents and contractors."
   pricing: "Commercial rate for property managers, agents and contractors, no contract. Junk removal is priced by volume; quotes by text from a photo."
   key_benefits:
@@ -38,6 +38,8 @@ icp:
     - "real estate agency"
     - "general contractor"
     - "remodeling contractor"
+    - "roofing contractor"
+    - "home builder"
   company_size: "1-200 employees"
   # Matched as "title contains this text", case-insensitive, so keep these
   # short: "Property Manager" also matches "Regional Property Manager".

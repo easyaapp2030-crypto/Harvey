@@ -21,10 +21,18 @@ A local, veteran-owned crew that shows up same day at a commercial rate with no 
 - Veteran-owned (Todd Temaat, 21-year Air Force veteran, Iraq and Afghanistan), hires veterans
 - 10% of profits go to veteran entrepreneur training and PTSD resources
 
+## Which Service to Lead With
+Junk Platoon sells TWO things: junk removal/cleanouts AND roll-off dumpster rental. Match the lead to the prospect:
+- **Roofers, home builders, remodelers, general contractors:** lead with **15- or 20-yard roll-off dumpsters dropped same day**, no contract. Mention haul-away as the option for small jobs or when the crew would rather not load it.
+- **Property managers and apartment communities:** lead with **same-day unit trash-outs and cleanouts**. Mention a roll-off for big jobs (multi-unit turns, renovations, evictions).
+- **Real estate agents and investors:** lead with **pre-listing and estate cleanouts**. Mention a roll-off for flips and renovations.
+Never pitch only junk removal to a contractor or roofer; dumpsters are usually what they buy.
+
 ## Use Cases
 - **Property managers / apartment communities:** move-out trash-outs, abandoned belongings, make-ready deadlines, common-area cleanups, eviction cleanouts
 - **Real estate agents / investors:** pre-listing cleanouts, estate cleanouts, foreclosure and REO trash-outs, garage and shed cleanouts before photos
-- **Contractors / remodelers:** demo and renovation debris, haul-off at project close, cleaning up after subs. Roll-off dumpster for longer jobs, or a same-day haul-off for small ones
+- **Roofers:** tear-off shingles and decking. A same-day roll-off on the driveway is the core need.
+- **Contractors / remodelers / home builders:** demo and renovation debris, haul-off at project close, cleaning up after subs. Roll-off dumpster for longer jobs, or a same-day haul-off for small ones
 
 ## Pricing
 - Commercial rate for property managers, real estate agents and contractors, with **no contract**. Use it job by job.

@@ -642,6 +642,7 @@ async def test_osm_maps_the_trades_it_does_know():
     assert provider._tags("cosmetic dentist") == ["amenity=dentist"]
     assert provider._tags("real estate agency") == ["office=estate_agent"]
     assert provider._tags("property management company") == ["office=property_management"]
+    assert provider._tags("home builder") == ["craft=builder", "office=construction_company"]
     assert provider._tags("B2B SaaS") == []
 
 

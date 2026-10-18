@@ -499,6 +499,7 @@ class OpenStreetMap(DiscoveryProvider):
         "real estate": ['office=estate_agent'],
         "realtor": ['office=estate_agent'],
         "property manag": ['office=property_management'],
+        "builder": ['craft=builder', 'office=construction_company'],
     }
 
     def _tags(self, term: str) -> list[str]:
