@@ -34,8 +34,10 @@ product:
 icp:
   industries:
     - "property management company"
+    - "apartment complex"
     - "real estate agency"
     - "general contractor"
+    - "remodeling contractor"
   company_size: "1-200 employees"
   # Matched as "title contains this text", case-insensitive, so keep these
   # short: "Property Manager" also matches "Regional Property Manager".
@@ -64,12 +66,35 @@ icp:
     - "Founder"
     - "Principal"
     - "Managing Member"
+  # ~30 miles around Edmond. Search engines (Serper) bias results to the
+  # named city, so each town is searched on its own.
   geography:
     - "Edmond, OK"
-  # Centered on Edmond, 48 km (~30 miles) — covers OKC, Moore, Norman edge,
-  # Yukon, Mustang, Midwest City, Guthrie.
+    - "Oklahoma City, OK"
+    - "Norman, OK"
+    - "Moore, OK"
+    - "Yukon, OK"
+    - "Mustang, OK"
+    - "Midwest City, OK"
+    - "Bethany, OK"
+    - "Choctaw, OK"
+    - "Piedmont, OK"
+    - "Guthrie, OK"
+  # Map searches (OpenStreetMap, DataForSEO listings) use a radius instead.
+  # Edmond's 48 km circle covers the whole area; the others are small so the
+  # free map source isn't asked for the same businesses over and over.
   geo_coordinates:
     "Edmond, OK": "35.6528,-97.4781,48"
+    "Oklahoma City, OK": "35.4676,-97.5164,12"
+    "Norman, OK": "35.2226,-97.4395,8"
+    "Moore, OK": "35.3395,-97.4867,6"
+    "Yukon, OK": "35.5067,-97.7625,6"
+    "Mustang, OK": "35.3842,-97.7245,6"
+    "Midwest City, OK": "35.4495,-97.3967,6"
+    "Bethany, OK": "35.5187,-97.6323,5"
+    "Choctaw, OK": "35.4976,-97.2690,6"
+    "Piedmont, OK": "35.6420,-97.7464,6"
+    "Guthrie, OK": "35.8789,-97.4253,6"
   # Companies hiring these are turning units / running jobs right now.
   hiring_signals:
     - "Make Ready Technician"
