@@ -3,12 +3,14 @@
 import logging
 import os
 import re
-from datetime import time as _time
+from datetime import date as _date, time as _time
 from pathlib import Path
 
 import yaml
+
+from harvey.textio import read_user_text
 from dotenv import load_dotenv
-from pydantic import BaseModel, ValidationError, field_validator
+from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
 from harvey.paths import PROJECT_ROOT
 
@@ -68,23 +70,102 @@ class ICPConfig(BaseModel):
     geo_coordinates: dict[str, str] = {}
 
 
+class WarmupConfig(BaseModel):
+    """Cold-email ramp for a new domain or mailbox.
+
+    Harvey doesn't run a warmup network itself; that needs a pool of real
+    inboxes (Instantly, Lemwarm, Mailreach...). This is the other half: no
+    cold email goes out for ``min_days`` after ``start_date``, then the cold
+    cap climbs from ``start_sends`` by ``daily_increase`` a day until it
+    reaches ``max_daily_sends``. Replies are never held. Empty
+    ``start_date`` means no ramp.
+    """
+
+    start_date: str = ""      # YYYY-MM-DD the warmup service was switched on
+    min_days: int = 14        # warmup-only days before any cold email
+    start_sends: int = 5      # cold-email cap on the first sending day
+    daily_increase: int = 3   # added to the cap each day after that
+    dkim_selector: str = ""   # for `harvey warmup`, if not a common one
+
+    @field_validator("start_date", "dkim_selector", mode="before")
+    @classmethod
+    def _blank_is_empty(cls, v, info):
+        if v is None:
+            return ""
+        if info.field_name != "start_date":
+            return v
+        # YAML reads an unquoted 2026-10-01 as a date (with a time, a datetime).
+        if isinstance(v, _date):
+            return (v.date() if hasattr(v, "date") and callable(v.date) else v).isoformat()
+        if isinstance(v, str) and len(v.strip()) > 10 and v.strip()[10] in " T":
+            return v.strip()[:10]  # "2026-10-01 09:00": the day is what counts
+        return "" if v is None else v
+
+    @field_validator("min_days", "start_sends", "daily_increase", mode="before")
+    @classmethod
+    def _blank_is_default(cls, v, info):
+        return cls.model_fields[info.field_name].default if v is None else v
+
+    @field_validator("start_date")
+    @classmethod
+    def _valid_date(cls, v: str) -> str:
+        v = (v or "").strip()
+        if v:
+            try:
+                _date.fromisoformat(v)
+            except ValueError:
+                raise ValueError(f"warmup.start_date '{v}' must be YYYY-MM-DD.")
+        return v
+
+    @field_validator("min_days", "start_sends", "daily_increase")
+    @classmethod
+    def _non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("warmup values must be >= 0")
+        return v
+
+    def days_in(self, today: _date | None = None) -> int | None:
+        """Days since warmup started, or None when no ramp is configured."""
+        if not self.start_date:
+            return None
+        return ((today or _date.today()) - _date.fromisoformat(self.start_date)).days
+
+    def daily_cap(self, ceiling: int, today: _date | None = None) -> int:
+        """Today's cold-email cap under the ramp (never above ``ceiling``)."""
+        days = self.days_in(today)
+        if days is None:
+            return ceiling
+        if days < self.min_days:
+            return 0
+        return min(ceiling, self.start_sends + (days - self.min_days) * self.daily_increase)
+
+
 class EmailChannelConfig(BaseModel):
     enabled: bool = True
     # "instantly" (legacy), "gmail" (Gmail/Workspace via API — recommended),
-    # or "smtp" (any SMTP+IMAP mailbox: AgentMail, Fastmail, ...)
+    # "microsoft" (Microsoft 365 / Outlook via Graph), or "smtp" (any
+    # SMTP+IMAP mailbox: AgentMail, Fastmail, ...)
     provider: str = "instantly"
     max_daily_sends: int = 50
     # When True, also send to catch-all ("risky") domains, not just verified
     # mailboxes. Off by default — catch-alls accept everything, so a bad
     # guess still bounces.
     send_to_risky: bool = False
-    # Copilot mode (native providers): every outgoing email waits in the
-    # outbox for your approval (dashboard → Outbox, or `harvey outbox`).
-    # Set false for full autopilot once you trust the output.
+    # Native providers queue mail for approval. Instantly cannot use that
+    # outbox, so it holds campaigns and escalates replies while this is true.
+    # Set false explicitly for full autopilot once you trust the output.
     require_approval: bool = True
     # Kill switch: pause all sending when bounces exceed this fraction of
     # sent mail (measured over the trailing sends). 0 disables the switch.
     max_bounce_rate: float = 0.05
+    # New domain? Ramp cold email up slowly (see WarmupConfig). Native
+    # providers only: Instantly has its own warmup and per-account limits.
+    warmup: WarmupConfig = WarmupConfig()
+
+    @field_validator("warmup", mode="before")
+    @classmethod
+    def _blank_warmup(cls, v):
+        return WarmupConfig() if v is None else v
 
     @field_validator("max_daily_sends")
     @classmethod
@@ -93,9 +174,45 @@ class EmailChannelConfig(BaseModel):
             raise ValueError("max_daily_sends must be >= 0")
         return v
 
+    def cold_daily_cap(self, today: _date | None = None) -> int:
+        """Today's cap on cold (sequence) email: max_daily_sends, throttled
+        by the warmup ramp. Replies count only toward max_daily_sends."""
+        return self.warmup.daily_cap(self.max_daily_sends, today)
+
+
+def cold_daily_cap(email_config, today: _date | None = None) -> int:
+    """cold_daily_cap for any email config, including ones without a ramp."""
+    warmup = getattr(email_config, "warmup", None)
+    if isinstance(warmup, WarmupConfig):
+        return warmup.daily_cap(email_config.max_daily_sends, today)
+    return email_config.max_daily_sends
+
+
+def legacy_sending_held(config) -> bool:
+    """True when Instantly is the provider and approval is required.
+
+    Instantly has no per-email approval queue, so with require_approval on
+    Harvey holds campaign deployment and hands replies to a human.
+    """
+    email = getattr(getattr(config, "channels", None), "email", None)
+    return (getattr(email, "provider", "") == "instantly"
+            and bool(getattr(email, "require_approval", True)))
+
+
+def sending_notice(config) -> str:
+    """A plain-language warning when outbound sending is held by config, or ""."""
+    if not legacy_sending_held(config):
+        return ""
+    return (
+        "Instantly sending is held: channels.email.require_approval is true, and "
+        "Instantly has no approval queue. Campaigns stay as drafts and replies go to "
+        "a human (dashboard Activity tab). Set require_approval: false to let Instantly "
+        "send automatically, or switch to gmail, microsoft or smtp to approve each email."
+    )
+
 
 class LinkedInChannelConfig(BaseModel):
-    enabled: bool = True
+    enabled: bool = False
     max_daily_connections: int = 20
     max_daily_messages: int = 10
 
@@ -103,6 +220,165 @@ class LinkedInChannelConfig(BaseModel):
 class ChannelsConfig(BaseModel):
     email: EmailChannelConfig = EmailChannelConfig()
     linkedin: LinkedInChannelConfig = LinkedInChannelConfig()
+
+
+PRECLEARED_ADDRESS_SOURCES = ("published", "bought", "scraped", "given", "unknown")
+
+
+def normalize_prospect_country(v) -> str:
+    """A two-letter country code ("us" -> "US", "UK" -> "GB"), or "" for none.
+
+    Raises ValueError on anything else, including the booleans YAML makes of
+    an unquoted NO (Norway) or ON, so a typo is never silently ignored.
+    """
+    if isinstance(v, bool):
+        raise ValueError(
+            f"prospect_country was read as {v}. YAML turns an unquoted NO or "
+            'ON into true/false, so quote the code, e.g. prospect_country: "NO".'
+        )
+    v = str(v or "").strip().upper()
+    v = {"UK": "GB", "USA": "US"}.get(v, v)
+    if v and not (len(v) == 2 and v.isascii() and v.isalpha()):
+        raise ValueError(
+            f"'{v}' is not a valid prospect_country. Use a two-letter "
+            "country code such as US or GB, or leave it empty."
+        )
+    return v
+
+
+class PreclearedConfig(BaseModel):
+    """Optional per-recipient cold-email check through Precleared.
+
+    Off by default. When on, each new recipient is checked once, before the
+    first cold email, against UK PECR, US CAN-SPAM, Canada's CASL, Germany's
+    UWG and France's rules. Any verdict other than ok_to_email holds the
+    email back with the reason. See harvey/integrations/precleared.py.
+    """
+
+    enabled: bool = False
+    # Where your business is based: GB or US. Required when enabled.
+    sender_country: str = ""
+    # Where prospect addresses come from, in Precleared's terms. Harvey
+    # builds most addresses from a learned pattern, so the honest default
+    # is "unknown"; use "published" only if yours are copied from the
+    # businesses' own websites.
+    address_source: str = "unknown"
+    # Optional: the country your prospects are in (two letters, e.g. "US"),
+    # if they are all in one. Precleared uses it only when it can't work out
+    # the recipient's country from the address, company records or the
+    # company's website. Leave empty if your prospects are spread out.
+    prospect_country: str = ""
+
+    @field_validator("sender_country", mode="before")
+    @classmethod
+    def _upper_country(cls, v) -> str:
+        return str(v or "").strip().upper()
+
+    @field_validator("address_source", mode="before")
+    @classmethod
+    def _valid_source(cls, v) -> str:
+        v = str(v or "unknown").strip().lower()
+        if v not in PRECLEARED_ADDRESS_SOURCES:
+            raise ValueError(
+                f"'{v}' is not a valid address_source. "
+                f"Use one of: {', '.join(PRECLEARED_ADDRESS_SOURCES)}."
+            )
+        return v
+
+    @field_validator("prospect_country", mode="before")
+    @classmethod
+    def _valid_prospect_country(cls, v) -> str:
+        return normalize_prospect_country(v)
+
+    @model_validator(mode="after")
+    def _country_when_enabled(self):
+        if self.enabled and self.sender_country not in ("GB", "US"):
+            raise ValueError(
+                "compliance.precleared.sender_country must be GB or US "
+                "when the check is enabled."
+            )
+        return self
+
+
+DEFAULT_OPT_OUT_LINE = 'Not interested? Reply "no thanks" and I won\'t email again.'
+# The replies the Handler always honours as an opt-out on their own; an
+# opt_out_line must ask for one of them ("Reply STOP", 'reply "no thanks"').
+OPT_OUT_WORDS = ("no thanks", "no thank you", "unsubscribe", "stop", "remove me",
+                 "opt out")
+_ASKS_FOR_OPT_OUT_RE = re.compile(
+    r"\breply(?:\s+with)?\s*[\"'\u201c\u2018]?\s*(?:"
+    + "|".join(re.escape(w) for w in OPT_OUT_WORDS) + r")\b", re.IGNORECASE)
+
+
+class ComplianceConfig(BaseModel):
+    precleared: PreclearedConfig = PreclearedConfig()
+    # Added under every cold (sequence) email at send time; never to replies.
+    # CAN-SPAM requires a postal address you receive mail at (a street
+    # address, PO box or virtual mailbox) and a working way to opt out.
+    postal_address: str = ""
+    # Must ask for wording Harvey recognises as an opt-out (OPT_OUT_WORDS).
+    # "" leaves it off (and harvey warns).
+    opt_out_line: str = DEFAULT_OPT_OUT_LINE
+
+    @field_validator("postal_address", "opt_out_line", mode="before")
+    @classmethod
+    def _blank_is_empty(cls, v):
+        return "" if v is None else v
+
+    @field_validator("opt_out_line")
+    @classmethod
+    def _recognisable_opt_out(cls, v: str) -> str:
+        v = v.strip()
+        lowered = v.lower()
+        if not v:
+            return v
+        if any(bit in lowered for bit in ("http", "www.", "click", "@")):
+            raise ValueError(
+                "opt_out_line can't contain a link or an email address: cold email "
+                "allows one link, and opting out must be as simple as replying."
+            )
+        if not _ASKS_FOR_OPT_OUT_RE.search(v):
+            raise ValueError(
+                "opt_out_line must ask for a reply Harvey recognises as an opt-out, "
+                'e.g. Reply "no thanks" / Reply STOP. Recognised: '
+                + ", ".join(f'"{w}"' for w in OPT_OUT_WORDS) + "."
+            )
+        return v
+
+
+def compliance_of(config) -> ComplianceConfig:
+    """The compliance section, or the defaults when a config has none."""
+    found = getattr(config, "compliance", None)
+    return found if isinstance(found, ComplianceConfig) else ComplianceConfig()
+
+
+def compliance_footer_lines(config) -> list[str]:
+    """The lines added under every cold email: address, then opt-out line."""
+    compliance = compliance_of(config)
+    return [line for line in (compliance.postal_address.strip(),
+                              compliance.opt_out_line.strip()) if line]
+
+
+def compliance_notice(config) -> str:
+    """A plain-language warning when cold email goes out without a postal
+    address, or "". Sending isn't held for it: this is the nudge."""
+    email = getattr(getattr(config, "channels", None), "email", None)
+    if not getattr(email, "enabled", False):
+        return ""
+    compliance = compliance_of(config)
+    missing = []
+    if not compliance.postal_address.strip():
+        missing.append("a postal address (compliance.postal_address: a street "
+                       "address, PO box or virtual mailbox)")
+    if not compliance.opt_out_line.strip():
+        missing.append("a way to opt out (compliance.opt_out_line)")
+    if not missing:
+        return ""
+    return (
+        "Cold emails are going out without " + " or ".join(missing) + ". US law "
+        "(CAN-SPAM) requires both in every cold email. Set them in harvey.yaml "
+        "(or harvey.local.yaml if you trained Harvey)."
+    )
 
 
 class QuietHoursConfig(BaseModel):
@@ -205,6 +481,14 @@ class BrainConfig(BaseModel):
         return v
 
 
+class WriterConfig(BaseModel):
+    # Run every draft through one extra editing-only brain call using the
+    # Humanizer skill's instructions (~/.claude/skills/humanizer/SKILL.md,
+    # or HARVEY_HUMANIZER_SKILL). Off by default: installing the skill for
+    # your own Claude Code use never changes what Harvey sends on its own.
+    humanizer: bool = False
+
+
 class HarveyConfig(BaseModel):
     persona: PersonaConfig
     product: ProductConfig
@@ -212,6 +496,8 @@ class HarveyConfig(BaseModel):
     channels: ChannelsConfig = ChannelsConfig()
     usage: UsageConfig = UsageConfig()
     brain: BrainConfig = BrainConfig()
+    compliance: ComplianceConfig = ComplianceConfig()
+    writer: WriterConfig = WriterConfig()
 
 
 class EnvConfig(BaseModel):
@@ -237,6 +523,11 @@ class EnvConfig(BaseModel):
     imap_port: int = 993
     imap_username: str = ""
     imap_password: str = ""
+    # Microsoft 365 (channels.email.provider: microsoft)
+    m365_client_id: str = ""
+    m365_tenant_id: str = ""
+    # Optional: only used when compliance.precleared.enabled is true.
+    precleared_api_key: str = ""
 
 
 def _format_validation_error(e: ValidationError) -> str:
@@ -257,8 +548,7 @@ def load_config(config_path: str | None = None) -> HarveyConfig:
         config_path = _find_config_file()
 
     try:
-        with open(config_path) as f:
-            data = yaml.safe_load(f)
+        data = yaml.safe_load(read_user_text(config_path))
     except FileNotFoundError:
         raise ConfigFileNotFoundError(
             f"Config file not found: {config_path}. "
@@ -304,8 +594,7 @@ def load_brain_config(config_path: str | None = None) -> BrainConfig:
         except ConfigFileNotFoundError:
             return BrainConfig()
     try:
-        with open(config_path) as f:
-            data = yaml.safe_load(f)
+        data = yaml.safe_load(read_user_text(config_path))
     except FileNotFoundError:
         return BrainConfig()
     except (yaml.YAMLError, OSError) as e:
@@ -347,6 +636,9 @@ def load_env() -> EnvConfig:
         imap_port=int(os.getenv("IMAP_PORT", "993").strip() or 993),
         imap_username=os.getenv("IMAP_USERNAME", "").strip(),
         imap_password=os.getenv("IMAP_PASSWORD", "").strip(),
+        m365_client_id=os.getenv("M365_CLIENT_ID", "").strip(),
+        m365_tenant_id=os.getenv("M365_TENANT_ID", "").strip(),
+        precleared_api_key=os.getenv("PRECLEARED_API_KEY", "").strip(),
     )
     return env
 

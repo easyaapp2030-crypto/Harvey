@@ -12,7 +12,7 @@ upgrade cleanly in place.
 import json
 import uuid
 from contextlib import asynccontextmanager
-from datetime import datetime, date, timezone
+from datetime import datetime, date, timedelta, timezone
 from pathlib import Path
 
 import aiosqlite
@@ -28,6 +28,28 @@ DB_PATH = PROJECT_ROOT / "data" / "harvey.db"
 
 # How long (seconds) a connection waits on a locked database before failing.
 BUSY_TIMEOUT_SECONDS = 30.0
+
+# Email statuses the Writer drafts for. Shared with the heartbeat so it only
+# chooses write_campaign when there is something the Writer will act on.
+WRITABLE_EMAIL_STATUSES = ("verified", "risky")
+# Settings key, per prospect: the user emailed them by hand from the
+# dashboard. Its value is the status they had before, so undo is exact; its
+# presence tells the Sender never to email them as well.
+MANUAL_SEND_KEY = "manual_send:"
+# Outbox cancel reason for mail the user sent by hand instead; undo restores it.
+HAND_SENT_REASON = "sent_by_hand"
+# Outbox errors starting with this: the send was cut off and the email may
+# have reached them. Never retried, and counted as Harvey's mail, so the
+# dashboard never offers a second one by hand.
+MAYBE_SENT_PREFIX = "may have gone out: "
+STALE_SENDING_ERROR = (
+    MAYBE_SENT_PREFIX + "Harvey stopped in the middle of sending it; check "
+    "your Sent folder before emailing them again"
+)
+# A claimed email still not finished after this long was cut off mid-send (a
+# send itself takes seconds, and a whole cycle is stopped after 10 minutes).
+# Long enough never to catch another sender's email in flight.
+STALE_SENDING_AFTER = timedelta(minutes=15)
 
 
 def _new_id() -> str:
@@ -726,6 +748,21 @@ class StateManager:
             )
             await db.commit()
 
+    async def queue_prospect_if_unsent(self, prospect_id: str) -> bool:
+        """Mark a prospect 'queued' unless something moved them on meanwhile.
+
+        Conditional, so a status set while a campaign was being staged (the
+        user marking them sent by hand, a reply) is never overwritten.
+        """
+        async with self._connect() as db:
+            cursor = await db.execute(
+                "UPDATE prospects SET status = 'queued', updated_at = ? "
+                "WHERE id = ? AND status IN ('new', 'queued')",
+                (_utcnow().isoformat(), prospect_id),
+            )
+            await db.commit()
+            return cursor.rowcount > 0
+
     async def get_prospect_by_email(self, email: str) -> Prospect | None:
         """Look up a prospect by email address (indexed, case-insensitive)."""
         email = _norm(email)
@@ -853,7 +890,11 @@ class StateManager:
         status: str | None = None,
         due_before: str | None = None,
         limit: int = 200,
+        exclude_kind: str | None = None,
+        skip_unready_follow_ups: bool = False,
     ) -> list[dict]:
+        """skip_unready_follow_ups: leave out sequence follow-ups whose
+        previous step hasn't gone out yet, so they can't fill the page."""
         where, params = [], []
         if status:
             where.append("status = ?")
@@ -861,7 +902,17 @@ class StateManager:
         if due_before:
             where.append("(send_at IS NULL OR send_at <= ?)")
             params.append(due_before)
-        sql = "SELECT * FROM outbox"
+        if exclude_kind:
+            where.append("(kind IS NULL OR kind != ?)")
+            params.append(exclude_kind)
+        if skip_unready_follow_ups:
+            where.append(
+                "NOT (o.kind = 'sequence' AND o.step > 1 AND EXISTS ("
+                "SELECT 1 FROM outbox p WHERE p.prospect_id = o.prospect_id "
+                "AND p.campaign_id = o.campaign_id AND p.kind = 'sequence' "
+                "AND p.step = o.step - 1 "
+                "AND p.status IN ('pending_review', 'approved', 'sending')))")
+        sql = "SELECT * FROM outbox o"
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY send_at ASC, created_at ASC LIMIT ?"
@@ -870,6 +921,35 @@ class StateManager:
             db.row_factory = aiosqlite.Row
             async with db.execute(sql, params) as cursor:
                 return [dict(r) for r in await cursor.fetchall()]
+
+    async def get_texts_for_prospect(self, prospect_id: str, limit: int = 50) -> list[str]:
+        """Everything Harvey wrote for this person, which a reply may quote
+        back: their Outbox emails (a sent one with its footer, whatever it
+        said then) and the templates of campaigns they're in (Instantly and
+        hand sends never pass through the Outbox; merge tags unfilled)."""
+        texts: list[str] = []
+        async with self._connect() as db:
+            async with db.execute(
+                "SELECT body FROM outbox WHERE prospect_id = ? "
+                "ORDER BY created_at DESC LIMIT ?",
+                (prospect_id, int(limit)),
+            ) as cursor:
+                texts += [r[0] or "" for r in await cursor.fetchall()]
+            async with db.execute(
+                "SELECT sequence_json, prospect_ids_json FROM campaigns "
+                "WHERE prospect_ids_json LIKE ? ORDER BY created_at DESC LIMIT ?",
+                ("%" + prospect_id + "%", int(limit)),
+            ) as cursor:
+                rows = await cursor.fetchall()
+        for sequence_json, ids_json in rows:
+            try:
+                if prospect_id not in json.loads(ids_json or "[]"):
+                    continue
+                texts += [str(step.get("body") or "") for step in json.loads(sequence_json or "[]")
+                          if isinstance(step, dict)]
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                continue
+        return texts
 
     async def get_outbox_item(self, item_id: str) -> dict | None:
         async with self._connect() as db:
@@ -896,6 +976,106 @@ class StateManager:
                 (*fields.values(), _utcnow().isoformat(), item_id),
             )
             await db.commit()
+
+    async def claim_outbox_item(self, item_id: str) -> bool:
+        """Take an approved item for sending: approved → sending, atomically.
+
+        False when it is no longer approved and due (cancelled by a reply,
+        bounce or hand send, rejected, rescheduled, or taken by another
+        sender), so it must not go out now. Cancels never touch a claimed item: it is already on its way.
+        """
+        now = _utcnow().isoformat()
+        async with self._connect() as db:
+            cursor = await db.execute(
+                "UPDATE outbox SET status = 'sending', updated_at = ? "
+                "WHERE id = ? AND status = 'approved' "
+                "AND (send_at IS NULL OR send_at <= ?)",
+                (now, item_id, now),
+            )
+            await db.commit()
+            return cursor.rowcount == 1
+
+    async def fail_stale_sending_outbox(
+        self, older_than: timedelta = STALE_SENDING_AFTER
+    ) -> int:
+        """Items claimed long ago and never finished (Harvey stopped mid-send).
+
+        Whether they went out is unknown, so they are never retried: they
+        become failed with a note to check the Sent folder.
+        """
+        cutoff = (_utcnow() - older_than).isoformat()
+        async with self._connect() as db:
+            cursor = await db.execute(
+                "UPDATE outbox SET status = 'failed', error = ?, updated_at = ? "
+                "WHERE status = 'sending' AND datetime(updated_at) < datetime(?)",
+                (STALE_SENDING_ERROR, _utcnow().isoformat(), cutoff),
+            )
+            await db.commit()
+            return cursor.rowcount
+
+    async def edit_outbox_draft(self, item_id: str, subject: str, body: str) -> int:
+        """Rewrite a draft's subject and body — only while it awaits review.
+
+        Atomic on status, like approve: an item already approved, sent or
+        rejected is never changed. Editing never approves; that stays a
+        separate, explicit step. Returns the number of rows changed (0/1).
+        """
+        async with self._connect() as db:
+            cursor = await db.execute(
+                "UPDATE outbox SET subject = ?, body = ?, updated_at = ? "
+                "WHERE id = ? AND status = 'pending_review'",
+                (subject, body, _utcnow().isoformat(), item_id),
+            )
+            await db.commit()
+            return cursor.rowcount
+
+    async def restore_hand_cancelled_outbox(self, prospect_id: str, reason: str) -> int:
+        """Undo a cancel made with `reason`: those items go back for review.
+
+        Always to pending_review, even if they were approved before: a human
+        decides again. They're rescheduled from now with their original gaps,
+        so a late undo never releases a whole sequence at once. Items
+        cancelled for any other reason stay cancelled.
+        """
+        async with self._connect() as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT id, send_at FROM outbox WHERE prospect_id = ? "
+                "AND status = 'cancelled' AND error = ? ORDER BY send_at",
+                (prospect_id, reason),
+            ) as cursor:
+                rows = [dict(r) for r in await cursor.fetchall()]
+            if not rows:
+                return 0
+            now = _utcnow()
+
+            def _at(value):
+                try:
+                    return datetime.fromisoformat(str(value))
+                except (TypeError, ValueError):
+                    return now
+            first = _at(rows[0]["send_at"])
+            for r in rows:
+                send_at = now + max(timedelta(0), _at(r["send_at"]) - first)
+                await db.execute(
+                    "UPDATE outbox SET status = 'pending_review', error = '', send_at = ?, "
+                    "updated_at = ? WHERE id = ?",
+                    (send_at.isoformat(), now.isoformat(), r["id"]),
+                )
+            await db.commit()
+            return len(rows)
+
+    async def reject_outbox_item(self, item_id: str) -> int:
+        """Reject an item still waiting to go out. Mail already on its way
+        or sent is never relabelled. Returns rows changed (0/1)."""
+        async with self._connect() as db:
+            cursor = await db.execute(
+                "UPDATE outbox SET status = 'rejected', updated_at = ? "
+                "WHERE id = ? AND status IN ('pending_review', 'approved')",
+                (_utcnow().isoformat(), item_id),
+            )
+            await db.commit()
+            return cursor.rowcount
 
     async def approve_outbox(self, item_id: str | None = None) -> int:
         """Approve one pending item, or ALL pending when item_id is None."""
@@ -935,13 +1115,52 @@ class StateManager:
             ) as cursor:
                 return (await cursor.fetchone())[0]
 
-    async def count_outbox_sent_today(self) -> int:
+    async def count_outbox_sent_today(self, kind: str | None = None,
+                                      since: str | None = None) -> int:
+        """Emails sent today (the UTC day, or since `since`, a naive UTC
+        ISO time); only one kind ("sequence", "reply") if given."""
+        if since:
+            sql = "SELECT COUNT(*) FROM outbox WHERE status = 'sent' AND sent_at >= ?"
+            params: tuple = (since,)
+        else:
+            sql = ("SELECT COUNT(*) FROM outbox WHERE status = 'sent' "
+                   "AND date(sent_at) = date('now')")
+            params = ()
+        if kind:
+            sql += " AND kind = ?"
+            params += (kind,)
+        async with self._connect() as db:
+            async with db.execute(sql, params) as cursor:
+                return (await cursor.fetchone())[0]
+
+    async def get_step_delay_days(self, campaign_id: str, step: int) -> int | None:
+        """The campaign's planned wait before `step` (days after the step
+        before it), or None when the campaign or step isn't known."""
         async with self._connect() as db:
             async with db.execute(
-                "SELECT COUNT(*) FROM outbox WHERE status = 'sent' "
-                "AND date(sent_at) = date('now')"
+                "SELECT sequence_json FROM campaigns WHERE id = ?", (campaign_id or "",)
             ) as cursor:
-                return (await cursor.fetchone())[0]
+                row = await cursor.fetchone()
+        try:
+            for s in json.loads((row[0] if row else None) or "[]"):
+                if isinstance(s, dict) and int(s.get("step", 0)) == int(step):
+                    return max(0, int(s.get("delay_days") or 0))
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+        return None
+
+    async def get_previous_step(self, item: dict) -> dict | None:
+        """The email a sequence follow-up follows (same campaign and person,
+        one step earlier), or None."""
+        async with self._connect() as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                "SELECT * FROM outbox WHERE prospect_id = ? AND campaign_id = ? "
+                "AND kind = 'sequence' AND step = ? ORDER BY created_at DESC LIMIT 1",
+                (item["prospect_id"], item.get("campaign_id") or "", int(item["step"]) - 1),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
 
     async def find_outbox_by_message_id(self, message_id: str) -> dict | None:
         if not message_id:
@@ -1195,6 +1414,39 @@ class StateManager:
             async with db.execute(sql, params) as cursor:
                 return [row[0] for row in await cursor.fetchall()]
 
+    async def cohort_companies(self, require: list[str], exclude: list[str],
+                               offset: int = 0, limit: int | None = None) -> tuple[int, list[dict]]:
+        """Count all matches and page company details in one read snapshot."""
+        if not require:
+            return 0, []
+        require = list(dict.fromkeys(require))
+        exclude = list(dict.fromkeys(exclude))
+        matches = (
+            "SELECT company_id FROM positive WHERE company_id != '' AND "
+            f"signal_code IN ({','.join('?' for _ in require)}) "
+            "AND confidence >= 0 GROUP BY company_id "
+            "HAVING COUNT(DISTINCT signal_code) = ?"
+        )
+        params = [*require, len(require)]
+        if exclude:
+            matches += (" AND company_id NOT IN (SELECT company_id FROM positive "
+                        f"WHERE signal_code IN ({','.join('?' for _ in exclude)}))")
+            params.extend(exclude)
+        base = self._CURRENT_CTE + " SELECT {columns} FROM companies WHERE id IN (" + matches + ")"
+        async with self._connect() as db:
+            db.row_factory = aiosqlite.Row
+            await db.execute("BEGIN")
+            async with db.execute(base.format(columns="COUNT(*)"), params) as cursor:
+                size = (await cursor.fetchone())[0]
+            sql = base.format(columns="id, name, domain, website, industry, location")
+            sql += " ORDER BY LOWER(COALESCE(name, '')), id"
+            page_params = list(params)
+            if limit is not None:
+                sql += " LIMIT ? OFFSET ?"
+                page_params.extend([limit, offset])
+            async with db.execute(sql, page_params) as cursor:
+                return size, [dict(row) for row in await cursor.fetchall()]
+
     async def companies_needing_profile(
         self, limit: int = 100, stale_days: int = 90
     ) -> list[dict]:
@@ -1247,6 +1499,20 @@ class StateManager:
                 """UPDATE companies SET profile_checked_at = CURRENT_TIMESTAMP,
                        updated_at = CURRENT_TIMESTAMP WHERE id = ?""",
                 (company_id,),
+            )
+            await db.commit()
+
+    async def rename_company(self, company_id: str, name: str):
+        """Set a company's name, and the copy each of its prospects carries."""
+        async with self._connect() as db:
+            await db.execute(
+                "UPDATE companies SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                (name, company_id),
+            )
+            await db.execute(
+                "UPDATE prospects SET company = ?, updated_at = CURRENT_TIMESTAMP "
+                "WHERE company_id = ?",
+                (name, company_id),
             )
             await db.commit()
 
@@ -1347,6 +1613,32 @@ class StateManager:
 
     # ── Settings (operational flags: kill switch, counters) ──
 
+    FOOTER_HISTORY_KEY = "compliance_footer_history"
+
+    async def remember_footer_lines(self, lines) -> None:
+        """Keep every footer line Harvey has sent under a cold email, so a
+        reply quoting an old one (since reworded) is still known as ours."""
+        lines = [l.strip() for l in lines if l and l.strip()]
+        if not lines:
+            return
+        try:
+            known = json.loads(await self.get_setting(self.FOOTER_HISTORY_KEY) or "[]")
+        except (json.JSONDecodeError, TypeError):
+            known = []
+        if not isinstance(known, list):
+            known = []
+        merged = [l for l in known if isinstance(l, str)]
+        merged += [l for l in lines if l not in merged]
+        if merged != known:
+            await self.set_setting(self.FOOTER_HISTORY_KEY, json.dumps(merged[-50:]))
+
+    async def get_footer_history(self) -> list[str]:
+        try:
+            known = json.loads(await self.get_setting(self.FOOTER_HISTORY_KEY) or "[]")
+        except (json.JSONDecodeError, TypeError):
+            return []
+        return [l for l in known if isinstance(l, str)] if isinstance(known, list) else []
+
     async def get_setting(self, key: str, default: str = "") -> str:
         async with self._connect() as db:
             async with db.execute(
@@ -1354,6 +1646,22 @@ class StateManager:
             ) as cursor:
                 row = await cursor.fetchone()
                 return row[0] if row else default
+
+    async def retry_write_failed(self) -> int:
+        """Give every 'write_failed' prospect another try. Returns how many."""
+        async with self._connect() as db:
+            cursor = await db.execute(
+                "UPDATE prospects SET status = 'new', updated_at = ? "
+                "WHERE status = 'write_failed'",
+                (_utcnow().isoformat(),),
+            )
+            await db.commit()
+            return cursor.rowcount
+
+    async def delete_setting(self, key: str):
+        async with self._connect() as db:
+            await db.execute("DELETE FROM settings WHERE key = ?", (key,))
+            await db.commit()
 
     async def set_setting(self, key: str, value: str):
         async with self._connect() as db:
@@ -1405,6 +1713,33 @@ class StateManager:
                         return True
         return False
 
+    async def count_writable_prospects(self) -> int:
+        """New prospects the Writer can draft for (a deliverable email)."""
+        marks = ",".join("?" for _ in WRITABLE_EMAIL_STATUSES)
+        async with self._connect() as db:
+            async with db.execute(
+                f"""SELECT COUNT(*) FROM prospects
+                    WHERE status = 'new' AND email != ''
+                      AND email_status IN ({marks})""",
+                WRITABLE_EMAIL_STATUSES,
+            ) as cursor:
+                return (await cursor.fetchone())[0]
+
+    async def count_recent_unusable_prospects(self, hours: int = 24) -> int:
+        """New prospects found in the last ``hours`` that the Writer can't use."""
+        since = (_utcnow() - timedelta(hours=hours)).isoformat()
+        marks = ",".join("?" for _ in WRITABLE_EMAIL_STATUSES)
+        async with self._connect() as db:
+            async with db.execute(
+                f"""SELECT COUNT(*) FROM prospects
+                    WHERE status = 'new'
+                      AND NOT (COALESCE(email, '') != ''
+                               AND COALESCE(email_status, '') IN ({marks}))
+                      AND datetime(created_at) >= datetime(?)""",
+                (*WRITABLE_EMAIL_STATUSES, since),
+            ) as cursor:
+                return (await cursor.fetchone())[0]
+
     async def count_prospects_by_status(self) -> dict[str, int]:
         async with self._connect() as db:
             async with db.execute(
@@ -1450,6 +1785,46 @@ class StateManager:
             ) as cursor:
                 rows = await cursor.fetchall()
                 return [dict(r) for r in rows]
+
+    async def get_writing_feedback(
+        self, prospect_ids: list[str] | tuple = (), limit: int = 10
+    ) -> list[dict]:
+        """What the owner said about past campaigns (newest first), plus
+        anything said about these contacts: the Writer follows it.
+
+        Each row: {"about": "campaign 'Denver roofers'" | "Dana Ruiz",
+        "comment": ...}."""
+        out: list[dict] = []
+        async with self._connect() as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute(
+                """SELECT f.comment, f.created_at, c.name FROM feedback f
+                   LEFT JOIN campaigns c ON c.id = f.entity_id
+                   WHERE f.entity_type = 'campaign' AND TRIM(f.comment) != ''
+                   ORDER BY f.created_at DESC LIMIT ?""",
+                (int(limit),),
+            ) as cursor:
+                for r in await cursor.fetchall():
+                    about = f"campaign '{r['name']}'" if r["name"] else "a past campaign"
+                    out.append({"about": about, "comment": r["comment"],
+                                "created_at": r["created_at"]})
+            ids = [i for i in prospect_ids if i][:50]
+            if ids:
+                marks = ",".join("?" * len(ids))
+                async with db.execute(
+                    f"""SELECT f.comment, f.created_at, p.first_name, p.last_name FROM feedback f
+                        JOIN prospects p ON p.id = f.entity_id
+                        WHERE f.entity_type = 'contact' AND f.entity_id IN ({marks})
+                          AND TRIM(f.comment) != ''
+                        ORDER BY f.created_at DESC LIMIT ?""",
+                    (*ids, int(limit)),
+                ) as cursor:
+                    for r in await cursor.fetchall():
+                        name = " ".join(x for x in (r["first_name"], r["last_name"]) if x)
+                        out.append({"about": name or "this contact", "comment": r["comment"],
+                                    "created_at": r["created_at"]})
+        out.sort(key=lambda n: str(n.get("created_at") or ""), reverse=True)  # newest first
+        return out
 
     # ── Reply Deduplication ──
 
@@ -1829,6 +2204,13 @@ class StateManager:
 
         return {
             "prospects": prospect_counts,
+            # The 'new' prospects the Writer can act on. A guessed or invalid
+            # address stays 'new' forever, so deciding from the raw count
+            # would keep choosing write_campaign with nothing to write.
+            "writable_prospects": await self.count_writable_prospects(),
+            # Unusable ones found in the last day: the heartbeat pauses
+            # prospecting for the day when these alone fill the backlog.
+            "recent_unusable_prospects": await self.count_recent_unusable_prospects(),
             "draft_campaigns": draft_campaigns,
             "active_campaigns": active_campaigns,
             "open_conversations": open_conversations,
@@ -1839,3 +2221,4 @@ class StateManager:
             # Claude budget the rest of the loop is rationing.
             "unprofiled": await self.count_companies_needing_profile(),
         }
+

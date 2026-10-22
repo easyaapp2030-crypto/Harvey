@@ -7,13 +7,20 @@ threshold — flips the global kill switch so a bad list can't torch the
 sending domain while nobody's watching.
 """
 
+import html
 import logging
+import re
 from datetime import datetime, timezone
 
 from harvey.brain import Brain, BrainUnavailable
-from harvey.config import HarveyConfig, EnvConfig
+from harvey.config import (
+    DEFAULT_OPT_OUT_LINE, HarveyConfig, EnvConfig, compliance_of, legacy_sending_held,
+)
+from harvey.humanize import humanize, humanizer_enabled
 from harvey.integrations.instantly import InstantlyClient
-from harvey.integrations.mail_provider import NATIVE_PROVIDERS, get_mail_provider
+from harvey.integrations.mail_provider import (
+    NATIVE_PROVIDERS, get_mail_provider, strip_quoted_reply,
+)
 from harvey.models.conversation import Conversation, Message
 from harvey.state import StateManager
 
@@ -58,6 +65,87 @@ OPT_OUT_PATTERNS = (
     "delete my info",
     "delete my data",
 )
+# "No thanks" (what cold email's footer asks for) as a phrase: not "no
+# Thanksgiving", "Bruno / Thanks," or "yes or no, thanks".
+# Checked one line at a time: "...the answer is no / Thanks!" is a sign-off.
+NO_THANKS_RE = re.compile(
+    r"(?<!\bor )\bno,?[ \t]+thank(?:s|[ \t]+you)\b(?![ \t]+(?:needed|necessary|required))")
+# A reply that says only this (signature aside) is an opt-out ("Reply STOP").
+BARE_OPT_OUTS = {"stop", "unsubscribe", "remove", "remove me", "opt out",
+                 "no thanks", "no thank you"}
+_MOBILE_SIGNATURE_RE = re.compile(
+    r"^[ \t]*(?:sent from my \w[^\n]*|get outlook for \w[^\n]*|sent from \w+ mail[^\n]*)$",
+    re.IGNORECASE | re.MULTILINE)
+# A line of their reply at least this long that repeats what Harvey wrote
+# for this person is our text, not theirs. Shorter unmarked lines are always
+# theirs, so a reply of "No thanks" or "STOP" is never taken for a quote.
+OWN_TEXT_MIN_CHARS = 20
+# Outlook's plain-text quotes add "<mailto:...>" / "<https://...>" after links.
+_LINK_ANNOTATION_RE = re.compile(r"<(?:mailto:|https?://)[^>\s]*>", re.IGNORECASE)
+_MERGE_TAG_RE = re.compile(r"\{\{\s*\w+\s*\}\}")
+
+
+def _flat(text: str) -> str:
+    """Lowercase, with quote markers, HTML entities, link annotations, curly
+    quotes and spacing evened out, so text compares however a mail client
+    re-quoted it."""
+    text = _LINK_ANNOTATION_RE.sub("", html.unescape(text or ""))
+    text = re.sub(r"^[ \t>]+", "", text, flags=re.MULTILINE)
+    text = (text.replace("\u201c", '"').replace("\u201d", '"')
+            .replace("\u2018", "'").replace("\u2019", "'"))
+    return " ".join(text.lower().split())
+
+
+class OurText:
+    """What Harvey wrote for one person, to tell their words from our quote."""
+
+    def __init__(self, texts):
+        self.lines = set()
+        for text in texts:
+            # Merge tags weren't filled in templates: compare the parts around them.
+            for part in _MERGE_TAG_RE.split(text or ""):
+                for line in part.split("\n"):
+                    line = _flat(line)
+                    if len(line) >= OWN_TEXT_MIN_CHARS:
+                        self.lines.add(line)
+        self.joined = "\n".join(sorted(self.lines))
+
+    def _is_ours(self, line: str) -> bool:
+        flat = _flat(line)
+        if not flat or flat not in self.joined:
+            return False
+        # A ">" line is quoted anyway; an unmarked one must be long enough
+        # that it can't be their own short "No thanks".
+        return line.lstrip().startswith(">") or len(flat) >= OWN_TEXT_MIN_CHARS
+
+    def remove(self, text: str) -> str:
+        """Their reply without our text: lines that repeat ours are dropped,
+        and any of our lines inside a longer line (an HTML reply flattened to
+        one line) is cut out of it."""
+        kept = []
+        for line in (text or "").split("\n"):
+            if self._is_ours(line):
+                continue
+            flat = _flat(line)
+            hits = [ours for ours in self.lines if ours in flat]
+            if hits:
+                for ours in sorted(hits, key=len, reverse=True):
+                    flat = flat.replace(ours, " ")
+                line = " ".join(flat.split())
+            kept.append(line)
+        return "\n".join(kept)
+
+
+def _is_opt_out(their_text: str, own_words: str) -> bool:
+    """their_text: everything they wrote, our text removed. own_words: their
+    reply without the quote. Longer phrases match across a line wrap; "no
+    thanks" only within a line."""
+    if any(p in _flat(their_text) for p in OPT_OUT_PATTERNS):
+        return True
+    if any(NO_THANKS_RE.search(_flat(line)) for line in their_text.split("\n")):
+        return True
+    bare = _flat(_MOBILE_SIGNATURE_RE.sub("", own_words or ""))
+    return re.sub(r"[^\w\s-]", "", bare).strip() in BARE_OPT_OUTS
 
 # Phrases that mean a human must take over. Never auto-reply to these.
 ESCALATION_PATTERNS = (
@@ -193,6 +281,16 @@ class Handler:
                 await self.state.mark_reply_processed(reply_uuid)
         return True
 
+    async def _our_text(self, prospect) -> OurText:
+        """Everything a reply from this person might quote back from us: what
+        Harvey wrote for them (footers as sent) and today's footer."""
+        compliance = compliance_of(self.config)
+        return OurText([
+            *await self.state.get_texts_for_prospect(prospect.id),
+            *await self.state.get_footer_history(),
+            compliance.postal_address, compliance.opt_out_line, DEFAULT_OPT_OUT_LINE,
+        ])
+
     async def _process_reply(
         self,
         lead_email: str,
@@ -207,6 +305,17 @@ class Handler:
         if not prospect:
             logger.warning(f"Handler: No prospect found for {lead_email}")
             return
+
+        # Their words, without what we sent them. The keyword checks below
+        # read every line they wrote, even under or between quoted lines;
+        # the model, the stored thread and the answer read their reply
+        # without the quoted email. Either way, a line repeating what we
+        # sent (our footer says "no thanks") is ours, not theirs.
+        ours = await self._our_text(prospect)
+        their_text = ours.remove(reply_text)
+        keyword_text = _flat(their_text)
+        stripped = strip_quoted_reply(reply_text) or reply_text
+        reply_text = ours.remove(stripped).strip() or stripped
 
         # Update prospect status + stop-on-reply: a human answered, so every
         # queued sequence email for them is now wrong to send.
@@ -223,10 +332,9 @@ class Handler:
 
         # 1. Classify intent. Hard keyword checks run FIRST and override
         # the LLM — opt-outs and legal threats must never be missed.
-        text_lower = reply_text.lower()
-        if any(p in text_lower for p in OPT_OUT_PATTERNS):
+        if _is_opt_out(their_text, reply_text):
             intent = "unsubscribe"
-        elif any(p in text_lower for p in ESCALATION_PATTERNS):
+        elif any(p in keyword_text for p in ESCALATION_PATTERNS):
             intent = "escalate"
         else:
             intent = await self._classify_intent(reply_text, prospect)
@@ -258,9 +366,11 @@ class Handler:
         old_stage = convo.stage
         convo.stage = self._determine_stage(intent, convo.stage, reply_text)
 
-        # 2b. Draft the reply now, while nothing is stored yet.
+        # 2b. Draft the reply now, while nothing is stored yet. A held
+        # Instantly setup can't send it, so don't spend a model call on it.
+        held = not self.is_native and legacy_sending_held(self.config)
         response = ""
-        if intent in AUTO_REPLY_INTENTS:
+        if intent in AUTO_REPLY_INTENTS and not held:
             response = await self._generate_response(intent, reply_text, prospect, convo)
 
         # 2c. Store the conversation in one write.
@@ -317,6 +427,20 @@ class Handler:
 
         if intent not in AUTO_REPLY_INTENTS:
             logger.warning(f"Handler: No auto-reply policy for intent '{intent}'. Skipping reply.")
+            return
+
+        if held:
+            # Instantly has no approval queue: a human answers this one.
+            await self.state.update_conversation(convo.id, status="needs_human")
+            await self.state.log_action(
+                action_type="escalation", agent="handler",
+                details={"prospect_email": lead_email, "reason": "instantly_approval_required",
+                         "reply_preview": reply_text[:200]},
+            )
+            logger.warning(
+                f"Handler: reply from {lead_email} held for a human: Instantly can't "
+                "queue replies for approval while require_approval is true."
+            )
             return
 
         # For interested, objection, question, wrong_person — the reply drafted above
@@ -669,4 +793,8 @@ Write a reply that:"""
         if response.lower().startswith(("i can't", "i cannot", "as an ai", "sorry,")):
             logger.warning("Handler: Model returned meta-text instead of an email. Discarding.")
             return ""
-        return response
+        polished = await humanize(
+            self.brain, [{"subject": "", "body": response}], agent="handler",
+            enabled=humanizer_enabled(self.config),
+        )
+        return polished[0]["body"]

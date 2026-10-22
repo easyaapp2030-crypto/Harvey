@@ -348,13 +348,13 @@ async def test_isolation_failure_mid_cycle_leaves_the_reply_for_later(harvey, mo
 
 @pytest.mark.asyncio
 async def test_rejected_model_pauses_with_an_actionable_reason(monkeypatch, tmp_path):
-    harvey = Harness(monkeypatch, tmp_path, model="gpt-6.1-sol")  # code mode
+    harvey = Harness(monkeypatch, tmp_path, model="missing-model")  # absent from catalog
     await harvey.state.init_db()
     await _open_thread(harvey.state)
     harvey.mail.inbound = [_reply("Could you share pricing details?")]
     await harvey.run_cycles(1)
     status = await harvey.status()
-    assert status["status"] == "paused" and "gpt-5.5" in status["reason"]
+    assert status["status"] == "paused" and "missing-model" in status["reason"]
     assert not await harvey.state.is_reply_processed("in-1")
     assert sum(1 for e in harvey.entries() if "prompt_chars" in e) == 0
 
@@ -593,7 +593,8 @@ async def test_instantly_reply_survives_an_outage_while_drafting(harvey):
 
     await harvey.state.init_db()
     _, convo_id = await _open_thread(harvey.state)
-    config = HarveyConfig(**{**BASE, "channels": {"email": {"provider": "instantly"}},
+    config = HarveyConfig(**{**BASE, "channels": {"email": {
+                                "provider": "instantly", "require_approval": False}},
                              "brain": {"provider": "codex", "model": "gpt-5.5"}})
     brain = Brain(harvey.state, config.brain)
     handler = Handler(brain=brain, state=harvey.state, config=config, env=EnvConfig())
@@ -633,7 +634,7 @@ async def test_instantly_reply_survives_an_outage_while_drafting(harvey):
 
 @pytest.mark.asyncio
 async def test_rejected_model_never_sends_queued_mail(monkeypatch, tmp_path):
-    harvey = Harness(monkeypatch, tmp_path, model="gpt-6.1-sol")  # code mode
+    harvey = Harness(monkeypatch, tmp_path, model="missing-model")  # absent from catalog
     await harvey.state.init_db()
     await _open_thread(harvey.state)
     await _approved_item(harvey.state)
@@ -642,7 +643,7 @@ async def test_rejected_model_never_sends_queued_mail(monkeypatch, tmp_path):
     assert harvey.mail.sent == []
     status = await harvey.status()
     assert status["status"] == "paused" and status["kind"] == "isolation"
-    assert "gpt-5.5" in status["reason"]
+    assert "missing-model" in status["reason"]
     assert not await harvey.state.is_reply_processed("in-1")
     assert not [e for e in harvey.entries() if "prompt_chars" in e]
     # Caught by the heartbeat preflight, before any agent ran: the mailbox

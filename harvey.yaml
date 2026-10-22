@@ -1,119 +1,70 @@
 persona:
-  name: "Todd Temaat"
-  company: "Junk Platoon"
-  role: "Owner"
-  email: "sameday@junkplatoon.com"
-  linkedin: ""
-  tone: "friendly, direct, no-nonsense — a local veteran-owned business, not a call center"
+  name: "Harvey"
+  company: "Your Company"
+  role: "Business Development"
+  email: "harvey@yourcompany.com"
+  linkedin: "linkedin.com/in/harvey-yourcompany"
+  tone: "professional, consultative, confident"
 
 product:
-  name: "Junk Platoon Junk Removal & Dumpster Rental"
-  description: "Veteran-owned junk removal, property cleanouts and roll-off dumpster rental in the Oklahoma City metro (based in Edmond, OK). Same-day service at a commercial rate, no contract, for property managers, real estate agents and contractors."
-  pricing: "Commercial rate for property managers, agents and contractors, no contract. Junk removal is priced by volume; quotes by text from a photo."
+  name: "Your Product"
+  description: "Describe what your product does and who it's for"
+  pricing: "Starting at $X/mo"
   key_benefits:
-    - "Same-day service across the OKC metro — turn units, listings and job sites faster"
-    - "One call covers it: full-service haul-away, property cleanouts, or a 15- or 20-yard roll-off dumpster dropped on site"
-    - "Commercial rate with no contract — use us when you need us"
-    - "Trained, insured and bonded crews"
-    - "Veteran-owned and veteran-staffed; 10% of profits support veteran entrepreneurship and PTSD resources"
-    - "Strong local reviews (about 4.8 on Trustpilot, 4.6 on HomeAdvisor)"
+    - "Benefit 1"
+    - "Benefit 2"
+    - "Benefit 3"
   objection_responses:
-    "too expensive": "Totally fair. Pricing is by volume, so you only pay for what we haul — and a quick photo is usually enough for a firm quote. Happy to price your next one so you can compare."
-    "already have a solution": "Makes sense. Since there's no contract, a lot of property managers and contractors keep us as the backup for when their usual hauler or dumpster company can't come same day."
-    "not interested": "No problem at all. If a move-out or cleanout ever lands on your desk with a deadline, we're local and can usually be there the same or next day."
-    "we do it ourselves": "Plenty of folks do. If your crew would rather load it themselves, we can drop a roll-off dumpster same day. For full-unit trash-outs and estate cleanouts, our crew does the lifting and saves your team a day."
+    "too expensive": "I understand budget is important. Most of our clients see ROI within 30 days..."
+    "already have a solution": "That makes sense. Curious — what's the one thing you wish it did better?"
+    "not interested": "No worries at all. Mind if I ask what your current approach looks like?"
   offer:
-    primary: "Same-day junk removal, property cleanouts and roll-off dumpster rental at a commercial rate, no contract"
-    entry: "Text a photo of the job to 405-266-4412 for a same-day quote"
-    goal: "get_reply"
-    booking_method: "ask_preference"   # no meetings: interested prospects text photos to 405-266-4412 (see skills/product_knowledge.md)
-    booking_url: ""
-    meeting_duration: "10 minutes"
-    meeting_owner: "Todd Temaat"
+    primary: ""                    # Main offer (e.g., "Monthly subscription starting at $99/mo")
+    entry: ""                      # Low-commitment entry (e.g., "14-day free trial", "Free audit")
+    goal: "book_call"              # Goal of outreach: book_call, start_trial, get_reply
+    booking_method: "calendar_link" # calendar_link, suggest_times, ask_preference
+    booking_url: ""                # Calendar link URL (if using calendar_link method)
+    meeting_duration: "15 minutes" # How long the call is
+    meeting_owner: ""              # Who takes the meeting (name or role)
 
 icp:
   industries:
-    - "property management company"
-    - "apartment complex"
-    - "real estate agency"
-    - "general contractor"
-    - "remodeling contractor"
-    - "roofing contractor"
-    - "home builder"
-  company_size: "1-200 employees"
-  # Matched as "title contains this text", case-insensitive, so keep these
-  # short: "Property Manager" also matches "Regional Property Manager".
-  # Small local businesses mostly title the decision-maker Owner, President,
-  # CEO, Founder, Principal or General Manager — keep those in.
+    - "SaaS"
+    - "Marketing Agency"
+  company_size: "10-200 employees"
   titles:
-    - "Property Manager"
-    - "Community Manager"
-    - "Leasing Manager"
-    - "Asset Manager"
-    - "Maintenance"
-    - "Real Estate Agent"
-    - "Realtor"
-    - "Broker"
-    - "Team Lead"
-    - "Project Manager"
-    - "Construction Manager"
-    - "Superintendent"
-    - "Estimator"
-    - "Operations Manager"
-    - "Office Manager"
-    - "General Manager"
-    - "Owner"
-    - "President"
-    - "CEO"
-    - "Founder"
-    - "Principal"
-    - "Managing Member"
-  # ~30 miles around Edmond. Search engines (Serper) bias results to the
-  # named city, so each town is searched on its own.
+    - "VP Marketing"
+    - "Head of Growth"
+    - "CMO"
+    - "Director of Marketing"
   geography:
-    - "Edmond, OK"
-    - "Oklahoma City, OK"
-    - "Norman, OK"
-    - "Moore, OK"
-    - "Yukon, OK"
-    - "Mustang, OK"
-    - "Midwest City, OK"
-    - "Bethany, OK"
-    - "Choctaw, OK"
-    - "Piedmont, OK"
-    - "Guthrie, OK"
-  # Map searches (OpenStreetMap, DataForSEO listings) use a radius instead.
-  # Edmond's 48 km circle covers the whole area; the others are small so the
-  # free map source isn't asked for the same businesses over and over.
-  geo_coordinates:
-    "Edmond, OK": "35.6528,-97.4781,48"
-    "Oklahoma City, OK": "35.4676,-97.5164,12"
-    "Norman, OK": "35.2226,-97.4395,8"
-    "Moore, OK": "35.3395,-97.4867,6"
-    "Yukon, OK": "35.5067,-97.7625,6"
-    "Mustang, OK": "35.3842,-97.7245,6"
-    "Midwest City, OK": "35.4495,-97.3967,6"
-    "Bethany, OK": "35.5187,-97.6323,5"
-    "Choctaw, OK": "35.4976,-97.2690,6"
-    "Piedmont, OK": "35.6420,-97.7464,6"
-    "Guthrie, OK": "35.8789,-97.4253,6"
-  # Companies hiring these are turning units / running jobs right now.
-  hiring_signals:
-    - "Make Ready Technician"
-    - "Property Manager"
-    - "Leasing Agent"
-    - "Construction Superintendent"
+    - "United States"
+  # Roles that signal a company is in-market RIGHT NOW (a company hiring a
+  # "Head of Growth" is shopping for growth tooling). Used for careers-page
+  # scanning and job-board discovery. Empty = fall back to titles above.
+  hiring_signals: []
 
 channels:
   email:
     enabled: true
-    provider: "gmail"          # gmail (recommended) | smtp | instantly
+    provider: "gmail"          # gmail (recommended) | microsoft | smtp | instantly
     max_daily_sends: 50
-    require_approval: true      # native providers: emails wait in the Outbox
+    require_approval: true      # native: review in Outbox; Instantly: sending held
     send_to_risky: false        # also send to catch-all domains (off = safest)
     max_bounce_rate: 0.05       # pause all sending if bounces exceed this
+    # New sending domain? Set start_date to the day your warmup service went
+    # on: no cold email for min_days, then the cold cap climbs from
+    # start_sends by daily_increase a day up to max_daily_sends. Replies are
+    # never held. Gmail/Microsoft/SMTP only (Instantly has its own warmup).
+    # Check readiness any time with `harvey warmup`.
+    warmup:
+      start_date: ""            # YYYY-MM-DD; blank = no ramp
+      min_days: 14
+      start_sends: 5
+      daily_increase: 3
+      dkim_selector: ""         # only if your provider uses an unusual one
   linkedin:
-    enabled: true
+    enabled: false             # explicit opt-in; credentials alone do not enable it
     max_daily_connections: 20
     max_daily_messages: 10
 
@@ -123,4 +74,25 @@ usage:
   quiet_hours:
     start: "22:00"
     end: "07:00"
-    timezone: "America/Chicago"
+    timezone: "America/New_York"
+
+# Optional: check each new recipient with Precleared (precleared.dev) before
+# the first cold email: may cold marketing email go to this address under UK
+# PECR, US CAN-SPAM, Canada's CASL, Germany's UWG and France's rules? Any other
+# answer holds the email back, with the reason in the Outbox. One check per
+# address; 10 a day free without a key, 25 with a free key (PRECLEARED_API_KEY
+# in .env). Applies to the native providers (gmail, smtp). If all your prospects
+# are in one country, set prospect_country: Precleared uses it only when it can't
+# tell the country from the address, company records or the company's website.
+compliance:
+  # Added under every cold email (never replies). US law (CAN-SPAM) requires a
+  # postal address you receive mail at: a street address, PO box or virtual
+  # mailbox. Until it's set, cold email still sends, with a warning.
+  postal_address: ""
+  # Keep wording Harvey recognises as an opt-out ("no thanks", "unsubscribe").
+  opt_out_line: 'Not interested? Reply "no thanks" and I won''t email again.'
+  precleared:
+    enabled: false
+    sender_country: ""          # GB or US: where your business is based
+    address_source: "unknown"   # published | bought | scraped | given | unknown
+    prospect_country: ""        # optional, e.g. US if all your prospects are in one country
